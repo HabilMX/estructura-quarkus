@@ -1,0 +1,8 @@
+# Lo que deja Maven al construir: se rehace con «./mvnw verify», nunca se sube.
+target/
+
+# Editores y sistema operativo.
+.idea/
+*.iml
+.vscode/
+.DS_Store

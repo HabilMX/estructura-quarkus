@@ -1,0 +1,310 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>mx.habil</groupId>
+  <artifactId>pedidos</artifactId>
+  <version>0.1.0</version>
+  <name>pedidos</name>
+  <description>Plantilla de una API por capas con Quarkus: los pedidos de una tienda</description>
+
+  <properties>
+    <!-- Java 25 es la LTS vigente. «release» fija el lenguaje y la biblioteca de un solo golpe. -->
+    <maven.compiler.release>25</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- La plataforma, en una sola propiedad: 3.40 es la línea LTS más nueva. Casi ninguna
+         dependencia de abajo declara <version>: la pone el BOM de esta línea. -->
+    <quarkus.platform.version>3.40.1.2</quarkus.platform.version>
+    <archunit.version>1.5.1</archunit.version>
+    <assertj.version>3.27.7</assertj.version>
+    <jacoco.version>0.8.16</jacoco.version>
+    <compiler-plugin.version>3.16.0</compiler-plugin.version>
+    <surefire-plugin.version>3.6.1</surefire-plugin.version>
+    <dependency-plugin.version>3.11.0</dependency-plugin.version>
+    <enforcer-plugin.version>3.7.0</enforcer-plugin.version>
+  </properties>
+
+  <!-- El BOM de la plataforma trae las versiones de todo lo de Quarkus, ya probadas entre sí. -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.quarkus.platform</groupId>
+        <artifactId>quarkus-bom</artifactId>
+        <version>${quarkus.platform.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- api: Quarkus REST, los resources y el JSON con Jackson -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-rest-jackson</artifactId>
+    </dependency>
+    <!-- request: las anotaciones @NotBlank, @Email, @Positive y quien las revisa -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-hibernate-validator</artifactId>
+    </dependency>
+    <!-- exception: Problem Details (RFC 9457), con los errores del marco ya cubiertos -->
+    <dependency>
+      <groupId>io.quarkiverse.httpproblem</groupId>
+      <artifactId>quarkus-http-problem</artifactId>
+    </dependency>
+    <!-- repository y entity: Hibernate ORM con Panache, en estilo repositorio -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-hibernate-orm-panache</artifactId>
+    </dependency>
+    <!-- La base de datos del ejemplo: H2, en memoria. No hay nada que instalar. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jdbc-h2</artifactId>
+    </dependency>
+    <!-- client: REST Client, una interfaz anotada que Quarkus implementa -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-rest-client-jackson</artifactId>
+    </dependency>
+    <!-- client: tiempo límite y reintento -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-smallrye-fault-tolerance</artifactId>
+    </dependency>
+    <!-- salud y métricas, en el puerto de administración -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-smallrye-health</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
+    </dependency>
+    <!-- Quarkus no lee YAML de fábrica: esta extensión le enseña a leer application.yaml. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-config-yaml</artifactId>
+    </dependency>
+
+    <!-- Pruebas -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-junit</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-junit-mockito</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.rest-assured</groupId>
+      <artifactId>rest-assured</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>${assertj.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- La cobertura de las pruebas que levantan Quarkus (@QuarkusTest) -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-jacoco</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- La prueba de arquitectura: la que vigila hacia dónde apuntan las flechas -->
+    <dependency>
+      <groupId>com.tngtech.archunit</groupId>
+      <artifactId>archunit-junit5</artifactId>
+      <version>${archunit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- Quarkus hace en la construcción lo que otros marcos hacen al arrancar. -->
+      <plugin>
+        <groupId>io.quarkus.platform</groupId>
+        <artifactId>quarkus-maven-plugin</artifactId>
+        <version>${quarkus.platform.version}</version>
+        <extensions>true</extensions>
+        <executions>
+          <execution>
+            <goals>
+              <goal>build</goal>
+              <goal>generate-code</goal>
+              <goal>generate-code-tests</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${compiler-plugin.version}</version>
+        <configuration>
+          <!-- Quarkus lee los nombres de los parámetros (por ejemplo, el {id} de una ruta). -->
+          <parameters>true</parameters>
+        </configuration>
+      </plugin>
+
+      <!-- Si alguien construye con otro Java, que falle aquí y no después, lejos. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>${enforcer-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>java-y-maven</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireJavaVersion>
+                  <version>[25,26)</version>
+                  <message>Esta plantilla se construye con Java 25. Instálalo con SDKMAN: «sdk env install».</message>
+                </requireJavaVersion>
+                <requireMavenVersion>
+                  <version>[3.9,)</version>
+                  <message>Usa ./mvnw: trae el Maven con que se probó la plantilla.</message>
+                </requireMavenVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- Deja en una propiedad la ruta del jar de Mockito, para cargarlo como agente. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>${dependency-plugin.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>properties</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${surefire-plugin.version}</version>
+        <configuration>
+          <!-- Una corrida con cero pruebas es un rojo, no un verde. -->
+          <failIfNoTests>true</failIfNoTests>
+          <failIfNoSpecifiedTests>true</failIfNoSpecifiedTests>
+          <systemPropertyVariables>
+            <!-- La bitácora de Quarkus, también en las pruebas. -->
+            <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+          </systemPropertyVariables>
+          <!-- @{argLine} es lo que agrega JaCoCo; después va Mockito, como agente explícito. -->
+          <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
+        </configuration>
+      </plugin>
+
+      <!-- Cobertura: mide en «test» y exige el piso en «verify». Las pruebas que levantan Quarkus
+           las mide su extensión (quarkus-jacoco, en jacoco-quarkus.exec); las demás, este agente
+           (en jacoco.exec). Por eso el agente no mira el cargador de clases de Quarkus: si no, la
+           misma clase se mediría dos veces. -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco.version}</version>
+        <executions>
+          <execution>
+            <id>preparar</id>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+            <configuration>
+              <exclClassLoaders>*QuarkusClassLoader</exclClassLoaders>
+              <destFile>${project.build.directory}/jacoco.exec</destFile>
+              <append>true</append>
+            </configuration>
+          </execution>
+          <!-- Junta lo que midió cada uno en un solo archivo, y de ahí sale el único informe. -->
+          <execution>
+            <id>juntar</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>merge</goal>
+            </goals>
+            <configuration>
+              <fileSets>
+                <fileSet>
+                  <directory>${project.build.directory}</directory>
+                  <includes>
+                    <include>jacoco.exec</include>
+                    <include>jacoco-quarkus.exec</include>
+                  </includes>
+                </fileSet>
+              </fileSets>
+              <destFile>${project.build.directory}/jacoco-todo.exec</destFile>
+            </configuration>
+          </execution>
+          <execution>
+            <id>informe</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+            <configuration>
+              <dataFile>${project.build.directory}/jacoco-todo.exec</dataFile>
+            </configuration>
+          </execution>
+          <execution>
+            <id>piso</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+            <configuration>
+              <dataFile>${project.build.directory}/jacoco-todo.exec</dataFile>
+              <rules>
+                <rule>
+                  <element>BUNDLE</element>
+                  <limits>
+                    <limit>
+                      <counter>INSTRUCTION</counter>
+                      <value>COVEREDRATIO</value>
+                      <minimum>0.84</minimum>
+                    </limit>
+                  </limits>
+                </rule>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <!-- La imagen nativa: ./mvnw package -Dnative. Necesita GraalVM (o un contenedor). -->
+  <profiles>
+    <profile>
+      <id>native</id>
+      <activation>
+        <property>
+          <name>native</name>
+        </property>
+      </activation>
+      <properties>
+        <skipTests>true</skipTests>
+        <quarkus.native.enabled>true</quarkus.native.enabled>
+        <quarkus.package.jar.enabled>false</quarkus.package.jar.enabled>
+      </properties>
+    </profile>
+  </profiles>
+</project>

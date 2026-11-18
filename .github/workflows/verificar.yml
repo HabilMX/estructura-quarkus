@@ -1,0 +1,82 @@
+name: Verificar la plantilla
+
+# Se corre en cada cambio, a mano cuando se quiera, y una vez por semana: una
+# versión nueva de una dependencia o del JDK puede romper la plantilla sin que
+# nadie haya tocado nada, y es mejor enterarse por este rojo que por el primer
+# lector que la clone.
+# ⚠️ En un repositorio público, GitHub apaga solo la corrida programada si el
+# repositorio pasa 60 días sin actividad; hay que volver a encenderla a mano.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 13 * * 1" # lunes 13:17 UTC (7:17 en la Ciudad de México)
+
+permissions:
+  contents: read
+
+jobs:
+  verificar:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # macOS: la frontera se corre con el bash que trae el sistema (el 3.2),
+        # que es el que tiene quien clona en una Mac sin Homebrew.
+        os: [ubuntu-latest, macos-latest]
+    name: Java 25 · ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Temurin 25: la misma distribución y la misma línea que declara .sdkmanrc.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "25"
+          cache: maven
+
+      - name: Versiones
+        run: |
+          java -version
+          sh ./mvnw -version
+
+      # Compila, corre las pruebas, mide la cobertura y exige su piso.
+      - name: Construcción completa
+        shell: bash
+        run: sh ./mvnw -B verify
+
+      # El conteo se lee de los informes de Surefire, no del código de salida:
+      # una clase de pruebas que no arranca deja sus pruebas como saltadas, y el
+      # total no baja.
+      - name: Pruebas (el conteo se lee de los informes)
+        shell: bash
+        run: |
+          total=0; malas=0
+          for informe in target/surefire-reports/TEST-*.xml; do
+            cuenta() { sed -n "s/.*<testsuite [^>]* $1=\"\([0-9][0-9]*\)\".*/\1/p" "$informe" | head -n 1; }
+            total=$((total + $(cuenta tests)))
+            malas=$((malas + $(cuenta failures) + $(cuenta errors) + $(cuenta skipped)))
+          done
+          echo "pruebas: $total · fallas, errores y saltadas: $malas"
+          [ "$total" -ge 1 ] && [ "$malas" -eq 0 ]
+
+      # La frontera que sabe fallar: con el proyecto limpio, CapasTest pasa; con
+      # una flecha sembrada del service a api, y con cada una de las tres fugas
+      # de la entity por api, TIENE que fallar, cada vez en una sola regla y por
+      # la razón exacta. Si alguna pasa, este paso se pone rojo.
+      - name: Frontera (las flechas solo van hacia adentro)
+        if: runner.os == 'Linux'
+        run: bash herramientas/probar-frontera.sh
+
+      # En macOS, con /bin/bash explícito y en UTF-8: ese bash 3.2 lee mal una
+      # variable pegada a una letra con acento o a una comilla «», y un guion
+      # que se corta a la mitad puede salir con 0. Esta fila lo vigila.
+      - name: Frontera con el bash de macOS (/bin/bash 3.2)
+        if: runner.os == 'macOS'
+        env:
+          LANG: en_US.UTF-8
+          LC_ALL: en_US.UTF-8
+        run: |
+          /bin/bash --version | head -n 1
+          /bin/bash herramientas/probar-frontera.sh

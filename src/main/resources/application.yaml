@@ -1,0 +1,77 @@
+# La configuración de la aplicación, en un solo archivo.
+# Lo que cambia entre ambientes se lee de una variable, con su valor para desarrollo.
+# ⚠️ Quarkus no se detiene por una llave mal escrita: la anuncia al arrancar como
+# «Unrecognized configuration key» y la ignora. Después de tocar este archivo, busca esa frase.
+
+quarkus:
+  application:
+    name: pedidos
+
+  http:
+    port: ${PORT:8080}
+
+  # Salud y métricas van en otro puerto, el de administración: quien vigila entra por ahí, y el
+  # puerto público solo sirve la API.
+  management:
+    enabled: true
+    port: ${PUERTO_ADMINISTRACION:9000}
+
+  # Al apagar, termina primero las peticiones que ya entraron (hasta 10 s).
+  shutdown:
+    timeout: 10s
+
+  # El JSON entra y sale en snake_case: total_centavos, creado_en. Se decide aquí, una sola vez.
+  jackson:
+    property-naming-strategy: SNAKE_CASE
+
+  # La base del ejemplo: H2, en memoria. Nace vacía al arrancar y se borra al apagar.
+  datasource:
+    db-kind: h2
+    jdbc:
+      url: jdbc:h2:mem:pedidos;DB_CLOSE_DELAY=-1
+  hibernate-orm:
+    schema-management:
+      strategy: drop-and-create
+
+  # El proveedor de inventario. El tiempo límite de cada intento y el reintento están en
+  # InventarioApi; aquí, la dirección y cuánto se espera para conectar.
+  rest-client:
+    inventario:
+      url: ${INVENTARIO_URL:http://localhost:9090}
+      connect-timeout: 1000
+
+  # Los errores, con Problem Details. Una comanda mal llenada es 422, como las demás quejas de
+  # validación de la casa; y cada error lleva el número de la visita.
+  http-problem:
+    include-mdc-properties: request_id
+    constraint-violation:
+      status: 422
+      title: La solicitud no es válida
+
+  # Cada línea de la bitácora lleva el número de la petición.
+  log:
+    console:
+      format: "%d{HH:mm:ss.SSS} %-5p [%X{request_id}] [%c{2.}] %s%e%n"
+
+# En las pruebas, tiempos cortos: así la del 504 no tarda seis segundos. Se cambian los números,
+# no las reglas: si alguien borra el @Timeout de InventarioApi, esa prueba se pone roja.
+# ⚠️ La llave lleva «$$CDIWrapper»: las anotaciones de InventarioApi las aplica la clase que Quarkus
+# genera para la interfaz, y la configuración se busca con el nombre de ESA clase. Con el nombre
+# de la interfaz («InventarioApi/producto») la llave se ignora sin avisar (medido: el tiempo límite
+# seguía en 2 s). Las pruebas de tiempo límite son las que se ponen rojas si un día cambia.
+"%test":
+  quarkus:
+    devservices:
+      enabled: false
+    # La cobertura de las pruebas que levantan Quarkus la mide su extensión, en
+    # target/jacoco-quarkus.exec; la extensión no arma su propio informe: el único es el de
+    # ./mvnw verify, que junta los dos archivos.
+    jacoco:
+      report: false
+    fault-tolerance:
+      "mx.habil.pedidos.client.InventarioApi$$CDIWrapper/producto":
+        timeout:
+          value: 300
+        retry:
+          delay: 10
+          jitter: 5
